@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, Suspense, useMemo, memo } from 'react';
-import { useLoader, useThree } from '@react-three/fiber';
+import { useLoader, useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Html } from '@react-three/drei';
 import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
@@ -26,6 +26,9 @@ const PlyGeometry = memo(function PlyGeometry({ url, roomDimensions, onDimension
   const meshRef = useRef<THREE.Mesh>(null);
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [modelOpacity, setModelOpacity] = useState(0.7);
+  
+  const { camera } = useThree();
   
   // Use refs to access latest props without triggering re-renders
   const roomDimensionsRef = useRef(roomDimensions);
@@ -36,6 +39,29 @@ const PlyGeometry = memo(function PlyGeometry({ url, roomDimensions, onDimension
     roomDimensionsRef.current = roomDimensions;
     onDimensionsDetectedRef.current = onDimensionsDetected;
   }, [roomDimensions, onDimensionsDetected]);
+  
+  // Track camera position and adjust model opacity
+  useFrame(() => {
+    if (!roomDimensions) return;
+    
+    const cameraPos = camera.position;
+    const halfWidth = roomDimensions.width / 2;
+    const halfDepth = roomDimensions.depth / 2;
+    const height = roomDimensions.height;
+    
+    // Check if camera is inside or outside the room
+    const isInside = 
+      Math.abs(cameraPos.x) < halfWidth &&
+      Math.abs(cameraPos.z) < halfDepth &&
+      cameraPos.y > 0 && cameraPos.y < height;
+    
+    // If camera is outside, make model more transparent
+    // If camera is inside, make model less transparent
+    const targetOpacity = isInside ? 0.7 : 0.3;
+    
+    // Smooth transition
+    setModelOpacity(prev => prev + (targetOpacity - prev) * 0.1);
+  });
 
   const processGeometry = (loadedGeometry: THREE.BufferGeometry) => {
     console.log('========================================');
@@ -362,7 +388,7 @@ const PlyGeometry = memo(function PlyGeometry({ url, roomDimensions, onDimension
             wireframe={false}
             flatShading={false}
             transparent={true}
-            opacity={0.7}
+            opacity={modelOpacity}
             depthWrite={false}
           />
         </mesh>

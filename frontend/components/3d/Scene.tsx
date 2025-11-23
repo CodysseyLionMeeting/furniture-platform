@@ -14,6 +14,39 @@ import type { FurnitureItem } from '@/types/furniture';
 import * as THREE from 'three';
 import { useRef, useEffect } from 'react';
 
+// Helper function to calculate rotated dimensions
+function getRotatedDimensions(
+  dimensions: { width: number; height: number; depth: number },
+  rotationY: number
+): { width: number; height: number; depth: number } {
+  // Normalize rotation to 0-360 degrees
+  const degrees = ((rotationY * 180) / Math.PI) % 360;
+  const normalizedDegrees = degrees < 0 ? degrees + 360 : degrees;
+  
+  // Check if rotation is close to 90, 180, 270 degrees (within 5 degrees)
+  const isNear90 = Math.abs(normalizedDegrees - 90) < 5 || Math.abs(normalizedDegrees - 270) < 5;
+  
+  if (isNear90) {
+    // Swap width and depth for 90/270 degree rotations
+    return {
+      width: dimensions.depth,
+      height: dimensions.height,
+      depth: dimensions.width
+    };
+  } else {
+    // For 0/180 degrees or intermediate angles, use original or calculate diagonal
+    const radians = Math.abs(rotationY);
+    const sin = Math.abs(Math.sin(radians));
+    const cos = Math.abs(Math.cos(radians));
+    
+    return {
+      width: dimensions.width * cos + dimensions.depth * sin,
+      height: dimensions.height,
+      depth: dimensions.width * sin + dimensions.depth * cos
+    };
+  }
+}
+
 function SceneContent({ 
   projectId, 
   hasPlyFile, 
@@ -664,6 +697,39 @@ function SceneContent({
                 // Lock X and Z rotation to 0
                 obj.rotation.x = 0;
                 obj.rotation.z = 0;
+                
+                // Check if rotation causes wall collision
+                if (!usePlyBoundaries) {
+                  const rotatedDims = getRotatedDimensions(
+                    selectedFurniture.dimensions,
+                    obj.rotation.y
+                  );
+                  
+                  const halfWidth = rotatedDims.width / 2;
+                  const halfDepth = rotatedDims.depth / 2;
+                  const roomHalfWidth = actualRoomDimensions.width / 2;
+                  const roomHalfDepth = actualRoomDimensions.depth / 2;
+                  
+                  // Check if rotated furniture exceeds room boundaries
+                  const wouldExceedBounds = 
+                    obj.position.x - halfWidth < -roomHalfWidth ||
+                    obj.position.x + halfWidth > roomHalfWidth ||
+                    obj.position.z - halfDepth < -roomHalfDepth ||
+                    obj.position.z + halfDepth > roomHalfDepth;
+                  
+                  if (wouldExceedBounds) {
+                    // Revert rotation
+                    if (previousPositionRef.current) {
+                      const prevRotation = furnitures.find(f => f.id === selectedFurniture.id)?.rotation.y || 0;
+                      obj.rotation.y = (prevRotation * Math.PI) / 180;
+                    }
+                    
+                    // Show toast message
+                    useToastStore.getState().addToast('공간이 부족하여 회전할 수 없습니다', 'error');
+                    console.log('❌ Rotation blocked: would exceed room boundaries');
+                    return;
+                  }
+                }
               }
               
               // For translate mode, also check boundaries and collisions

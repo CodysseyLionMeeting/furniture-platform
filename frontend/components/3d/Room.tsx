@@ -3,8 +3,8 @@
 import * as THREE from 'three';
 import { useMaterialStore } from '@/store/materialStore';
 import { getMaterialById } from '@/data/materialCatalog';
-import { useThree } from '@react-three/fiber';
-import { useEffect, useRef, useMemo } from 'react';
+import { useThree, useFrame } from '@react-three/fiber';
+import { useEffect, useRef, useMemo, useState } from 'react';
 
 interface RoomProps {
   roomDimensions?: {
@@ -23,6 +23,26 @@ export function Room({ roomDimensions }: RoomProps = {}) {
   const halfWidth = width / 2;
   const halfDepth = depth / 2;
   const wallThickness = 0.1;
+  
+  const { camera } = useThree();
+  const [wallOpacity, setWallOpacity] = useState(0.15);
+  
+  // Track camera position and adjust wall opacity
+  useFrame(() => {
+    // Check if camera is inside or outside the room
+    const cameraPos = camera.position;
+    const isInside = 
+      Math.abs(cameraPos.x) < halfWidth &&
+      Math.abs(cameraPos.z) < halfDepth &&
+      cameraPos.y > 0 && cameraPos.y < height;
+    
+    // If camera is outside, make walls more transparent
+    // If camera is inside, make walls less transparent
+    const targetOpacity = isInside ? 0.15 : 0.05;
+    
+    // Smooth transition
+    setWallOpacity(prev => prev + (targetOpacity - prev) * 0.1);
+  });
 
   const appliedMaterials = useMaterialStore(state => state.appliedMaterials);
   const applicationMode = useMaterialStore(state => state.applicationMode);
@@ -48,7 +68,7 @@ export function Room({ roomDimensions }: RoomProps = {}) {
           roughness={isWall ? 0.8 : 0.9}
           metalness={0.1}
           transparent={isWall}
-          opacity={isWall ? 0.15 : 1}
+          opacity={isWall ? wallOpacity : 1}
           side={isWall ? THREE.DoubleSide : THREE.FrontSide}
           depthWrite={!isWall}
         />
@@ -64,7 +84,7 @@ export function Room({ roomDimensions }: RoomProps = {}) {
         roughness={material.roughness ?? (isWall ? 0.8 : 0.9)}
         metalness={material.metalness ?? 0.1}
         transparent={isWall}
-        opacity={isWall ? 0.2 : 1}
+        opacity={isWall ? wallOpacity : 1}
         side={isWall ? THREE.DoubleSide : THREE.FrontSide}
         depthWrite={!isWall}
       />

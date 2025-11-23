@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, Suspense, useMemo, memo } from 'react';
 import * as THREE from 'three';
 import { Html } from '@react-three/drei';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { useThree, useFrame } from '@react-three/fiber';
 
 interface GlbModelProps {
   projectId: number;
@@ -24,6 +25,8 @@ const GlbGeometry = memo(function GlbGeometry({ url, roomDimensions, onDimension
   const [model, setModel] = useState<THREE.Group | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   
+  const { camera } = useThree();
+  
   // Use refs to access latest props without triggering re-renders
   const roomDimensionsRef = useRef(roomDimensions);
   const onDimensionsDetectedRef = useRef(onDimensionsDetected);
@@ -33,6 +36,42 @@ const GlbGeometry = memo(function GlbGeometry({ url, roomDimensions, onDimension
     roomDimensionsRef.current = roomDimensions;
     onDimensionsDetectedRef.current = onDimensionsDetected;
   }, [roomDimensions, onDimensionsDetected]);
+  
+  // Track camera position and adjust model opacity dynamically
+  useFrame(() => {
+    if (!model || !roomDimensions) return;
+    
+    const cameraPos = camera.position;
+    const halfWidth = roomDimensions.width / 2;
+    const halfDepth = roomDimensions.depth / 2;
+    const height = roomDimensions.height;
+    
+    // Check if camera is inside or outside the room
+    const isInside = 
+      Math.abs(cameraPos.x) < halfWidth &&
+      Math.abs(cameraPos.z) < halfDepth &&
+      cameraPos.y > 0 && cameraPos.y < height;
+    
+    // Target opacity based on camera position
+    const targetOpacity = isInside ? 0.7 : 0.3;
+    
+    // Update all materials in the model
+    model.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        if (mesh.material) {
+          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          materials.forEach((mat) => {
+            if (mat.transparent) {
+              // Smooth transition
+              mat.opacity = mat.opacity + (targetOpacity - mat.opacity) * 0.1;
+              mat.needsUpdate = true;
+            }
+          });
+        }
+      }
+    });
+  });
 
   useEffect(() => {
     // Only load once when URL changes

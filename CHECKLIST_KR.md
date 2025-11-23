@@ -59,7 +59,7 @@
 - [x] furniture_add 이벤트
 - [x] furniture_delete 이벤트
 - [x] validate_furniture 이벤트
-- [x] 활성 룸 추적
+- [x] 활성 룸 추적\
 
 ### FastAPI 애플리케이션
 - [x] CORS 미들웨어가 있는 메인 앱
