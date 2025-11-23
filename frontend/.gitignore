@@ -17,6 +17,10 @@
 .DS_Store
 *.pem
 
+# custom
+*.glb
+*.ply
+
 # debug
 npm-debug.log*
 yarn-debug.log*
