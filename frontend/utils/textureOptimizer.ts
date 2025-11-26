@@ -2,6 +2,8 @@
  * Utility to optimize textures before GLB export
  */
 
+import * as THREE from 'three';
+
 export async function optimizeTextureForExport(textureUrl: string, maxSize: number = 512): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
